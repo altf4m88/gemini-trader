@@ -6,7 +6,7 @@ from langchain_core.outputs import LLMResult
 from langgraph.graph import StateGraph, END
 from agent_tools import analyze_market_state
 from bybit_tools import place_market_order, close_position
-from prompts import system_prompt
+from prompts_debug import system_prompt
 from database import SessionLocal, TradeHistory, AgentTokenUsage
 
 # Graph State

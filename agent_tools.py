@@ -19,12 +19,16 @@ def analyze_market_state(symbol: str, interval: int = 15) -> str:
     # 2. Add technical indicators
     enriched_data = add_technical_indicators(market_data)
 
+    # print the last RSI_14, MACD_12_26_9, BBM_5_2.0_2.0, STOCHRSIk_5_5_3_3, STOCHRSId_5_5_3_3
+    print(enriched_data[["RSI_14", "MACD_12_26_9", "BBM_5_2.0_2.0", "STOCHRSIk_5_5_3_3", "STOCHRSId_5_5_3_3"]].tail(5))
+
     # 3. Format the last few rows for the LLM
     llm_readable_data = enriched_data.tail(5).to_json(orient="records")
 
     # 4. Check for open positions
     open_position_qty = get_open_positions(symbol)
     position_info = f"Current position quantity for {symbol}: {open_position_qty}"
+    print(position_info)
 
     # 5. Construct the final output for the LLM
     analysis = f"Market Analysis for {symbol}:\n"

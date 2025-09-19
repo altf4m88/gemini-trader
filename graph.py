@@ -5,7 +5,7 @@ from langchain_google_genai import GoogleGenerativeAI
 from langchain_core.outputs import LLMResult
 from langgraph.graph import StateGraph, END
 from agent_tools import analyze_market_state
-from bybit_tools import spot_place_market_order, spot_close_position
+from bybit_tools import spot_place_market_order, spot_close_position, perp_place_market_order, perp_close_position
 from prompts_debug import system_prompt
 from prompts import spot_system_prompt, perp_system_prompt
 from database import SessionLocal, TradeHistory, AgentTokenUsage
@@ -28,7 +28,13 @@ def analyze_market(state: GraphState):
     print("---ANALYZING MARKET---")
     symbol = state['symbol']
     interval = state['interval']
-    market_analysis = analyze_market_state.invoke({"symbol": symbol, "interval": interval})
+    trading_mode = state.get('trading_mode', 'spot')
+    
+    market_analysis = analyze_market_state.invoke({
+        "symbol": symbol, 
+        "interval": interval,
+        "trading_mode": trading_mode
+    })
     return {"market_analysis": market_analysis}
 
 def make_trade_decision(state: GraphState):
@@ -131,10 +137,13 @@ def execute_trade(state: GraphState):
         elif action == "SELL" or action == "CLOSE":
             response = spot_close_position(symbol)
     elif trading_mode == 'perp':
-        # TODO: Implement futures trading functions
-        # For now, log that futures trading is not yet implemented
-        print(f"Futures trading not yet implemented for action: {action}")
-        return {"error_message": f"Futures trading functions not yet implemented"}
+        # Use perpetual futures trading functions
+        if action == "BUY":
+            response = perp_place_market_order(symbol, "Buy", quantity, margin_usd=50.0, leverage=10)
+        elif action == "SELL":
+            response = perp_place_market_order(symbol, "Sell", quantity, margin_usd=50.0, leverage=10)
+        elif action == "CLOSE_LONG" or action == "CLOSE_SHORT" or action == "CLOSE":
+            response = perp_close_position(symbol)
     else:
         return {"error_message": f"Invalid trading mode: {trading_mode}"}
 

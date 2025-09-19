@@ -6,7 +6,7 @@ import sys
 from dotenv import load_dotenv
 from graph import app, GraphState
 from database import init_db, SessionLocal, BalanceHistory
-from bybit_tools import spot_get_account_balance
+from bybit_tools import spot_get_account_balance, perp_get_account_balance, monitor_position_pnl
 
 # Load environment variables
 load_dotenv()
@@ -34,8 +34,15 @@ def log_balance_history(mode: str):
     logging.info(f"---LOGGING BALANCE HISTORY ({mode.upper()})---")
     db = SessionLocal()
     try:
-        # For now, use spot balance for both modes - will be updated when futures functions are added
-        response = spot_get_account_balance("UNIFIED")
+        # Use appropriate balance function based on trading mode
+        if mode == 'spot':
+            response = spot_get_account_balance("UNIFIED")
+        elif mode == 'perp':
+            response = perp_get_account_balance("UNIFIED")
+        else:
+            logging.error(f"Invalid trading mode for balance logging: {mode}")
+            return
+            
         if response and response.get('retCode') == 0:
             balances = response['result']['list']
             for balance in balances:
@@ -56,6 +63,9 @@ def run_spot_trading_cycle(symbol: str, interval: int):
     print(f"Selected Symbol: {symbol}")
     print(f"Selected Interval: {interval} minutes")
     print("Mode: SPOT TRADING")
+    
+    # Monitor current position PnL before making decisions
+    monitor_position_pnl(symbol, "spot")
     
     initial_state: GraphState = {
         "symbol": symbol,
@@ -82,6 +92,9 @@ def run_perp_trading_cycle(symbol: str, interval: int):
     print(f"Selected Symbol: {symbol}")
     print(f"Selected Interval: {interval} minutes")
     print("Mode: PERPETUAL FUTURES TRADING")
+    
+    # Monitor current position PnL before making decisions
+    monitor_position_pnl(symbol, "perp")
     
     initial_state: GraphState = {
         "symbol": symbol,

@@ -129,6 +129,25 @@ def execute_trade(state: GraphState):
     reasoning = decision.get('reasoning')
     trading_mode = state.get('trading_mode', 'spot')  # Default to spot if not specified
 
+    # Safety check: Prevent opening new positions when one already exists
+    if trading_mode == 'perp' and action in ["BUY", "SELL"]:
+        from bybit_tools import perp_get_open_positions
+        existing_position = perp_get_open_positions(symbol)
+        if existing_position and existing_position.get('has_position', False):
+            print(f"⚠️  SAFETY CHECK: Cannot open new {action} position - existing position detected!")
+            print(f"   Existing: {existing_position['side']} {existing_position['size']} units")
+            print(f"   Skipping trade execution for safety.")
+            return {"trade_executed": False, "error_message": f"Position already exists: {existing_position['side']} {existing_position['size']} units"}
+    
+    elif trading_mode == 'spot' and action == "BUY":
+        from bybit_tools import spot_get_open_positions
+        existing_position = spot_get_open_positions(symbol)
+        if existing_position and existing_position.get('has_position', False):
+            print(f"⚠️  SAFETY CHECK: Cannot open new {action} position - existing position detected!")
+            print(f"   Existing: {existing_position['size']} units")
+            print(f"   Skipping trade execution for safety.")
+            return {"trade_executed": False, "error_message": f"Position already exists: {existing_position['size']} units"}
+
     response = None
     if trading_mode == 'spot':
         # Use spot trading functions

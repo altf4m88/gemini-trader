@@ -15,8 +15,8 @@ session = HTTP(
     timeout=30,
 )
 
-def spot_get_market_data(symbol: str, interval: int, limit: int):
-    """Fetches historical OHLCV data and returns it as a pandas DataFrame."""
+def spot_get_market_data(symbol: str, interval: str, limit: int = 30):
+    """Fetches market data (OHLCV) for spot trading."""
     response = session.get_kline(
         category="spot",
         symbol=symbol,
@@ -35,7 +35,7 @@ def spot_get_market_data(symbol: str, interval: int, limit: int):
         # Convert string values to numeric (float) for OHLCV data
         numeric_columns = ["open", "high", "low", "close", "volume", "turnover"]
         for col in numeric_columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = df[col].apply(lambda x: safe_float_convert(x))
         
         # Bybit returns data in ascending order (oldest first), so we reverse it
         return df.iloc[::-1]
@@ -117,7 +117,7 @@ def spot_get_open_positions(symbol: str):
         market_data = spot_get_market_data(symbol, 1, 1)
         current_price = 0.0
         if not market_data.empty:
-            current_price = float(market_data.iloc[0]['close'])
+            current_price = safe_float_convert(market_data.iloc[0]['close'])
         
         position_info = {
             'symbol': symbol,
@@ -139,7 +139,7 @@ def spot_get_open_positions(symbol: str):
                     wallet_balance = coin_info[0].get('walletBalance', '0')
                     # Handle empty strings and convert to float safely
                     if wallet_balance and wallet_balance.strip():
-                        balance = float(wallet_balance)
+                        balance = safe_float_convert(wallet_balance)
                         # Disregard balances under 1 as open positions
                         if balance >= 1.0:
                             position_info.update({
@@ -275,7 +275,7 @@ def perp_get_market_data(symbol: str, interval: int, limit: int):
         # Convert string values to numeric (float) for OHLCV data
         numeric_columns = ["open", "high", "low", "close", "volume", "turnover"]
         for col in numeric_columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = df[col].apply(lambda x: safe_float_convert(x))
         
         # Bybit returns data in ascending order (oldest first), so we reverse it
         return df.iloc[::-1]
@@ -299,8 +299,37 @@ def perp_place_market_order(symbol: str, side: str, qty: float, margin_usd: floa
         leverage: Leverage multiplier (default: 10x)
     """
     try:
+        # Get instrument info to determine proper quantity precision
+        instruments_response = session.get_instruments_info(
+            category="linear",
+            symbol=symbol
+        )
+        
+        # Default to 3 decimal places if we can't get instrument info
+        qty_precision = 3
+        min_order_qty = 0.001
+        
+        if instruments_response.get('retCode') == 0 and instruments_response.get('result', {}).get('list'):
+            instrument_info = instruments_response['result']['list'][0]
+            # Get the lot size filter for quantity precision
+            lot_size_filter = instrument_info.get('lotSizeFilter', {})
+            if lot_size_filter:
+                min_order_qty = float(lot_size_filter.get('minOrderQty', 0.001))
+                # Calculate precision from min order quantity
+                min_qty_str = str(min_order_qty).rstrip('0').rstrip('.')
+                if '.' in min_qty_str:
+                    qty_precision = len(min_qty_str.split('.')[1])
+                else:
+                    qty_precision = 0
+        
+        # Round quantity to the proper precision and ensure it meets minimum
+        qty = round(float(qty), qty_precision)
+        if qty < min_order_qty:
+            qty = min_order_qty
+            
         print(f"Placing {side} perpetual futures order for {symbol}")
-        print(f"Quantity: {qty}, Margin: ${margin_usd}, Leverage: {leverage}x")
+        print(f"Quantity: {qty} (precision: {qty_precision}, min: {min_order_qty})")
+        print(f"Margin: ${margin_usd}, Leverage: {leverage}x")
         print(f"Position Size: ${margin_usd * leverage}")
         
         # Get current market price for stop loss and take profit calculations
@@ -371,6 +400,24 @@ def perp_place_market_order(symbol: str, side: str, qty: float, margin_usd: floa
         print(f"Error placing perpetual futures order for {symbol}: {e}")
         return {"retCode": -1, "retMsg": str(e)}
 
+def safe_float_convert(value, default=0.0):
+    """
+    Safely convert a value to float, handling empty strings and None values.
+    
+    Args:
+        value: The value to convert
+        default: Default value to return if conversion fails
+    
+    Returns:
+        float: Converted value or default
+    """
+    if value is None or value == '' or value == 'null':
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
 def perp_get_open_positions(symbol: str):
     """
     Checks for open perpetual futures positions for a given symbol.
@@ -388,17 +435,17 @@ def perp_get_open_positions(symbol: str):
             
             # Check if there are any open positions
             for position in positions:
-                position_size = float(position.get('size', '0'))
+                position_size = safe_float_convert(position.get('size', '0'))
                 
                 position_info = {
                     'symbol': position.get('symbol', symbol),
                     'side': position.get('side', 'None'),
                     'size': position_size,
-                    'avgPrice': float(position.get('avgPrice', '0')),
-                    'markPrice': float(position.get('markPrice', '0')),
-                    'unrealisedPnl': float(position.get('unrealisedPnl', '0')),
+                    'avgPrice': safe_float_convert(position.get('avgPrice', '0')),
+                    'markPrice': safe_float_convert(position.get('markPrice', '0')),
+                    'unrealisedPnl': safe_float_convert(position.get('unrealisedPnl', '0')),
                     'leverage': position.get('leverage', '0'),
-                    'positionValue': float(position.get('positionValue', '0')),
+                    'positionValue': safe_float_convert(position.get('positionValue', '0')),
                     'has_position': position_size > 0,
                     'trading_mode': 'perp'
                 }
@@ -406,8 +453,7 @@ def perp_get_open_positions(symbol: str):
                 if position_size > 0:
                     print(f"Open PERP position found: {position_info}")
                     print(f"Unrealized PnL: ${position_info['unrealisedPnl']:.2f}")
-                else:
-                    print(f"No open PERP position for {symbol}")
+
                 
                 return position_info
             

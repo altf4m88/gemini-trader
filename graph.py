@@ -5,8 +5,9 @@ from langchain_google_genai import GoogleGenerativeAI
 from langchain_core.outputs import LLMResult
 from langgraph.graph import StateGraph, END
 from agent_tools import analyze_market_state
-from bybit_tools import place_market_order, close_position
+from bybit_tools import spot_place_market_order, spot_close_position
 from prompts_debug import system_prompt
+from prompts import spot_system_prompt, perp_system_prompt
 from database import SessionLocal, TradeHistory, AgentTokenUsage
 
 # Graph State
@@ -17,6 +18,7 @@ class GraphState(TypedDict):
     llm_decision: dict
     trade_executed: bool
     error_message: str
+    trading_mode: str  # "spot" or "perp"
 
 # Initialize the Gemini model
 llm = GoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=os.environ.get("GOOGLE_API_KEY"))
@@ -32,8 +34,18 @@ def analyze_market(state: GraphState):
 def make_trade_decision(state: GraphState):
     print("---MAKING TRADE DECISION---")
     market_analysis = state['market_analysis']
+    trading_mode = state.get('trading_mode', 'spot')
     
-    prompt = f"{system_prompt}\n\nHere is the current market analysis:\n{market_analysis}"
+    # Select the appropriate prompt based on trading mode
+    if trading_mode == 'spot':
+        selected_prompt = spot_system_prompt
+    elif trading_mode == 'perp':
+        selected_prompt = perp_system_prompt
+    else:
+        # Fallback to debug prompt for testing
+        selected_prompt = system_prompt
+    
+    prompt = f"{selected_prompt}\n\nHere is the current market analysis:\n{market_analysis}"
     
     # Use generate to get token usage
     llm_result: LLMResult = llm.generate([prompt])
@@ -82,15 +94,16 @@ def log_decision(state: GraphState):
     symbol = state['symbol']
     quantity = decision.get('quantity')
     reasoning = decision.get('reasoning')
+    trading_mode = state.get('trading_mode', 'spot')
 
     # Log all decisions to the database, including HOLD
     db = SessionLocal()
     trade = TradeHistory(
-        symbol=symbol,
+        symbol=f"{symbol}_{trading_mode}",  # Include trading mode in symbol
         action=action,
         quantity=quantity,
         price=0.0,  # No price for HOLD decisions
-        reasoning=reasoning,
+        reasoning=f"[{trading_mode.upper()}] {reasoning}",  # Add mode to reasoning
         order_id=None,  # No order ID for HOLD decisions
         llm_decision=decision
     )
@@ -98,7 +111,7 @@ def log_decision(state: GraphState):
     db.commit()
     db.close()
     
-    print(f"Logged {action} decision for {symbol}")
+    print(f"Logged {action} decision for {symbol} in {trading_mode.upper()} mode")
     return {"trade_executed": False}  # Will be updated if trade is actually executed
 
 def execute_trade(state: GraphState):
@@ -108,12 +121,22 @@ def execute_trade(state: GraphState):
     symbol = state['symbol']
     quantity = decision.get('quantity')
     reasoning = decision.get('reasoning')
+    trading_mode = state.get('trading_mode', 'spot')  # Default to spot if not specified
 
     response = None
-    if action == "BUY":
-        response = place_market_order(symbol, "Buy", quantity)
-    elif action == "SELL" or action == "CLOSE":
-        response = close_position(symbol)
+    if trading_mode == 'spot':
+        # Use spot trading functions
+        if action == "BUY":
+            response = spot_place_market_order(symbol, "Buy", quantity)
+        elif action == "SELL" or action == "CLOSE":
+            response = spot_close_position(symbol)
+    elif trading_mode == 'perp':
+        # TODO: Implement futures trading functions
+        # For now, log that futures trading is not yet implemented
+        print(f"Futures trading not yet implemented for action: {action}")
+        return {"error_message": f"Futures trading functions not yet implemented"}
+    else:
+        return {"error_message": f"Invalid trading mode: {trading_mode}"}
 
     if response and response.get('retCode') == 0:
         # Update the existing database record with execution details

@@ -15,7 +15,7 @@ session = HTTP(
     timeout=30,
 )
 
-def get_market_data(symbol: str, interval: int, limit: int):
+def spot_get_market_data(symbol: str, interval: int, limit: int):
     """Fetches historical OHLCV data and returns it as a pandas DataFrame."""
     response = session.get_kline(
         category="spot",
@@ -41,16 +41,16 @@ def get_market_data(symbol: str, interval: int, limit: int):
         return df.iloc[::-1]
     return pd.DataFrame()
 
-def get_account_balance(account_type: str):
+def spot_get_account_balance(account_type: str):
     """Retrieves the current balance to calculate position sizes."""
     response = session.get_wallet_balance(accountType=account_type)
     return response
 
-def place_market_order(symbol: str, side: str, qty: float):
+def spot_place_market_order(symbol: str, side: str, qty: float):
     """Executes a trade. For BUY orders, places a market order followed by a separate stop loss order."""
     if side.lower() == "buy":
         # Get the current market price to calculate stop loss
-        market_data = get_market_data(symbol, 1, 1)  # Get latest price
+        market_data = spot_get_market_data(symbol, 1, 1)  # Get latest price
         if not market_data.empty:
             current_price = float(market_data.iloc[0]['close'])
             stop_loss_price = round(current_price * 0.9925, 4)  # 0.75% below entry price
@@ -99,7 +99,7 @@ def place_market_order(symbol: str, side: str, qty: float):
         )
         return response
 
-def get_open_positions(symbol: str):
+def spot_get_open_positions(symbol: str):
     """
     Checks the balance of the base currency for a given spot symbol.
     e.g., for BTCUSDT, it checks the BTC balance.
@@ -127,10 +127,10 @@ def get_open_positions(symbol: str):
         return 0.0
 
 
-def close_position(symbol: str):
+def spot_close_position(symbol: str):
     """Places a market sell order to close the entire position of the base currency."""
     try:
-        qty = get_open_positions(symbol)
+        qty = spot_get_open_positions(symbol)
         if qty > 0:
             # Round quantity down to appropriate decimal places based on symbol
             # Most altcoins like XRP typically use 0-4 decimal places
@@ -146,7 +146,7 @@ def close_position(symbol: str):
             
             print(f"Original quantity: {qty}, Rounded down quantity: {rounded_qty}")
             
-            return place_market_order(
+            return spot_place_market_order(
                 symbol=symbol,
                 side="Sell",
                 qty=str(rounded_qty)

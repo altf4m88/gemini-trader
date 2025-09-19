@@ -1,5 +1,5 @@
 from langchain.tools import tool
-from bybit_tools import get_market_data, get_open_positions
+from bybit_tools import spot_get_market_data, spot_get_open_positions
 from data_processor import add_technical_indicators
 
 @tool
@@ -11,7 +11,7 @@ def analyze_market_state(symbol: str, interval: int = 15) -> str:
     """
     # 1. Get market data
     # Using a limit of 500 as a reasonable default for indicator calculation
-    market_data = get_market_data(symbol, interval, limit=1000)
+    market_data = spot_get_market_data(symbol, interval, limit=1000)
 
     if market_data.empty:
         return "Could not retrieve market data."
@@ -26,7 +26,7 @@ def analyze_market_state(symbol: str, interval: int = 15) -> str:
     llm_readable_data = enriched_data.tail(5).to_json(orient="records")
 
     # 4. Check for open positions
-    open_position_qty = get_open_positions(symbol)
+    open_position_qty = spot_get_open_positions(symbol)
     position_info = f"Current position quantity for {symbol}: {open_position_qty}"
     print(position_info)
 

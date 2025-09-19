@@ -586,3 +586,225 @@ def monitor_position_pnl(symbol: str, trading_mode: str):
     except Exception as e:
         print(f"Error monitoring position PnL: {e}")
         return None
+
+def get_bybit_trade_history(category: str = "linear", symbol: str = None, limit: int = 50, start_time: int = None, end_time: int = None):
+    """
+    Fetch trade execution history from Bybit.
+    
+    Args:
+        category: Product type ('linear', 'spot', 'option', 'inverse')
+        symbol: Symbol name (e.g., 'BTCUSDT') - optional
+        limit: Number of records to return (1-100, default: 50)
+        start_time: Start timestamp in milliseconds - optional
+        end_time: End timestamp in milliseconds - optional
+    
+    Returns:
+        dict: Response from Bybit API containing execution records
+    """
+    try:
+        params = {
+            "category": category,
+            "limit": limit
+        }
+        
+        # Add optional parameters if provided
+        if symbol:
+            params["symbol"] = symbol
+        if start_time:
+            params["startTime"] = start_time
+        if end_time:
+            params["endTime"] = end_time
+            
+        print(f"Fetching trade history with params: {params}")
+        
+        response = session.get_executions(**params)
+        
+        if response.get('retCode') == 0:
+            executions = response.get('result', {}).get('list', [])
+            print(f"Successfully fetched {len(executions)} trade execution records")
+            return response
+        else:
+            print(f"Error fetching trade history: {response.get('retMsg', 'Unknown error')}")
+            return response
+            
+    except Exception as e:
+        print(f"Exception while fetching trade history: {e}")
+        return {"retCode": -1, "retMsg": str(e), "result": {"list": []}}
+
+def calculate_trade_pnl(execution: dict, category: str = "linear"):
+    """
+    Calculate the profit/loss for a single trade execution.
+    
+    For spot trades:
+    - Buy: PnL = -(exec_value + exec_fee) [negative because it's a purchase]
+    - Sell: PnL = exec_value - exec_fee [positive for sales]
+    
+    For futures trades (linear):
+    - Uses the closedSize to determine if it's opening or closing a position
+    - For closing trades: PnL = closedSize * (exec_price - avg_entry_price) for longs
+    - For opening trades: PnL = 0 (no realized PnL yet)
+    
+    Args:
+        execution: Single execution record from Bybit API
+        category: Product category ('spot', 'linear', etc.)
+    
+    Returns:
+        float: Calculated PnL for this execution
+    """
+    try:
+        side = execution.get('side', '').lower()
+        exec_value = safe_float_convert(execution.get('execValue', 0))
+        exec_fee = safe_float_convert(execution.get('execFee', 0))
+        closed_size = safe_float_convert(execution.get('closedSize', 0))
+        exec_qty = safe_float_convert(execution.get('execQty', 0))
+        exec_price = safe_float_convert(execution.get('execPrice', 0))
+        
+        if category.lower() == 'spot':
+            # For spot trades, calculate immediate cash flow impact
+            if side == 'buy':
+                # Buying costs money (negative PnL)
+                pnl = -(exec_value + exec_fee)
+            else:  # sell
+                # Selling brings in money (positive PnL)
+                pnl = exec_value - exec_fee
+        
+        elif category.lower() in ['linear', 'inverse']:
+            # For futures trades
+            if closed_size > 0:
+                # This is a position-closing trade, there should be realized PnL
+                # However, Bybit doesn't provide the entry price in execution data
+                # So we'll use a simplified calculation based on the execution
+                if side == 'sell':
+                    # Closing a long position or opening a short
+                    pnl = exec_value - exec_fee
+                else:  # buy
+                    # Closing a short position or opening a long
+                    pnl = -(exec_value + exec_fee)
+            else:
+                # Opening position - no immediate realized PnL, just costs
+                if side == 'buy':
+                    pnl = -exec_fee  # Just the fee cost
+                else:  # sell
+                    pnl = -exec_fee  # Just the fee cost
+        
+        else:
+            # For other categories (option, etc.), use basic calculation
+            if side == 'buy':
+                pnl = -(exec_value + exec_fee)
+            else:
+                pnl = exec_value - exec_fee
+        
+        return round(pnl, 6)
+        
+    except Exception as e:
+        print(f"Error calculating PnL for execution: {e}")
+        return 0.0
+
+def store_trade_history_to_db(executions_list: list, category: str = "linear"):
+    """
+    Store Bybit trade execution records to the database.
+    
+    Args:
+        executions_list: List of execution records from Bybit API
+        category: Product category for the trades
+    
+    Returns:
+        dict: Summary of stored records
+    """
+    from database import SessionLocal, BybitTradeHistory
+    
+    stored_count = 0
+    updated_count = 0
+    error_count = 0
+    
+    db = SessionLocal()
+    
+    try:
+        for execution in executions_list:
+            try:
+                exec_id = execution.get('execId')
+                
+                # Check if this execution already exists
+                existing_record = db.query(BybitTradeHistory).filter(
+                    BybitTradeHistory.exec_id == exec_id
+                ).first()
+                
+                if existing_record:
+                    # Update existing record
+                    for key, value in execution.items():
+                        if hasattr(existing_record, key.lower().replace('id', '_id')):
+                            setattr(existing_record, key.lower().replace('id', '_id'), value)
+                    updated_count += 1
+                else:
+                    # Create new record
+                    # Calculate PnL for this trade
+                    trade_pnl = calculate_trade_pnl(execution, category)
+                    
+                    trade_record = BybitTradeHistory(
+                        exec_id=execution.get('execId'),
+                        symbol=execution.get('symbol'),
+                        order_id=execution.get('orderId'),
+                        order_link_id=execution.get('orderLinkId'),
+                        side=execution.get('side'),
+                        order_type=execution.get('orderType'),
+                        order_price=safe_float_convert(execution.get('orderPrice')),
+                        order_qty=safe_float_convert(execution.get('orderQty')),
+                        leaves_qty=safe_float_convert(execution.get('leavesQty')),
+                        exec_price=safe_float_convert(execution.get('execPrice')),
+                        exec_qty=safe_float_convert(execution.get('execQty')),
+                        exec_value=safe_float_convert(execution.get('execValue')),
+                        exec_fee=safe_float_convert(execution.get('execFee')),
+                        exec_fee_v2=safe_float_convert(execution.get('execFeeV2')),
+                        fee_currency=execution.get('feeCurrency'),
+                        fee_rate=safe_float_convert(execution.get('feeRate')),
+                        is_maker=execution.get('isMaker'),
+                        exec_type=execution.get('execType'),
+                        stop_order_type=execution.get('stopOrderType'),
+                        create_type=execution.get('createType'),
+                        trade_iv=execution.get('tradeIv'),
+                        mark_iv=execution.get('markIv'),
+                        mark_price=safe_float_convert(execution.get('markPrice')),
+                        index_price=safe_float_convert(execution.get('indexPrice')),
+                        underlying_price=safe_float_convert(execution.get('underlyingPrice')),
+                        block_trade_id=execution.get('blockTradeId'),
+                        closed_size=safe_float_convert(execution.get('closedSize')),
+                        seq=int(execution.get('seq', 0)) if execution.get('seq') else None,
+                        extra_fees=execution.get('extraFees'),
+                        exec_time=int(execution.get('execTime')) if execution.get('execTime') else None,
+                        category=category,
+                        pnl=trade_pnl
+                    )
+                    
+                    db.add(trade_record)
+                    stored_count += 1
+                    
+            except Exception as e:
+                print(f"Error processing execution record {execution.get('execId', 'unknown')}: {e}")
+                error_count += 1
+                continue
+        
+        # Commit all changes
+        db.commit()
+        
+        summary = {
+            "stored_count": stored_count,
+            "updated_count": updated_count,
+            "error_count": error_count,
+            "total_processed": len(executions_list)
+        }
+        
+        print(f"Trade history storage summary: {summary}")
+        return summary
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Database error while storing trade history: {e}")
+        return {
+            "stored_count": 0,
+            "updated_count": 0,
+            "error_count": len(executions_list),
+            "total_processed": len(executions_list),
+            "error": str(e)
+        }
+    finally:
+        db.close()

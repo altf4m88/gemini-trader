@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON, Boolean, Text, BigInteger
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from dotenv import load_dotenv
@@ -26,6 +26,61 @@ class TradeHistory(Base):
     reasoning = Column(String)
     order_id = Column(String)
     llm_decision = Column(JSON)
+
+class BybitTradeHistory(Base):
+    __tablename__ = "bybit_trade_history"
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Bybit execution details
+    exec_id = Column(String, unique=True, index=True)  # Unique execution ID from Bybit
+    symbol = Column(String, index=True)
+    order_id = Column(String, index=True)
+    order_link_id = Column(String)
+    side = Column(String)  # Buy/Sell
+    order_type = Column(String)  # Market/Limit
+    
+    # Price and quantity information
+    order_price = Column(Float)
+    order_qty = Column(Float)
+    leaves_qty = Column(Float)
+    exec_price = Column(Float)
+    exec_qty = Column(Float)
+    exec_value = Column(Float)
+    
+    # Fees and financial details
+    exec_fee = Column(Float)
+    exec_fee_v2 = Column(Float)
+    fee_currency = Column(String)
+    fee_rate = Column(Float)
+    
+    # Trading details
+    is_maker = Column(Boolean)
+    exec_type = Column(String)
+    stop_order_type = Column(String)
+    create_type = Column(String)
+    
+    # Options-specific fields
+    trade_iv = Column(String)
+    mark_iv = Column(String)
+    mark_price = Column(Float)
+    index_price = Column(Float)
+    underlying_price = Column(Float)
+    
+    # Additional fields
+    block_trade_id = Column(String)
+    closed_size = Column(Float)
+    seq = Column(BigInteger)
+    extra_fees = Column(Text)
+    
+    # Timing
+    exec_time = Column(BigInteger, index=True)  # Execution timestamp from Bybit
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)  # When we inserted this record
+    
+    # Category for the trade (linear, spot, option, etc.)
+    category = Column(String, index=True)
+    
+    # Calculated PnL for the trade
+    pnl = Column(Float)  # Profit/Loss calculated based on side and execution details
 
 class BalanceHistory(Base):
     __tablename__ = "balance_history"

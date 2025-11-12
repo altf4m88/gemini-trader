@@ -179,7 +179,6 @@ def spot_get_open_positions(symbol: str):
             'error': str(e)
         }
 
-
 def spot_close_position(symbol: str):
     """Places a market sell order to close the entire position of the base currency."""
     try:

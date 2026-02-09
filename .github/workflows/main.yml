@@ -24,7 +24,7 @@ jobs:
           github_action_config.auto_improve: "false" 
           
           # 3. Model Config
-          config.model: "kimi-k2.5:cloud"
-          config.fallback_models: '["gpt-oss:20b"]'
+          config.model: "ollama/kimi-k2.5:cloud"
+          config.fallback_models: '["ollama/gpt-oss:20b"]'
           config.ai_timeout: "600"
           config.custom_model_max_tokens: "64000"

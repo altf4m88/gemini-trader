@@ -1,0 +1,26 @@
+name: "Local GPU Review"
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+jobs:
+  review:
+    # 1. Target the Docker container running on your Mac
+    runs-on: [self-hosted, mac-bridge] 
+    
+    steps:
+      - name: PR Agent
+        uses: qodo-ai/pr-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+          # 2. Point to your GPU Server's LAN IP
+          # REPLACE '192.168.1.50' with your actual Server IP
+          OLLAMA.API_BASE: "http://192.168.103.100:11434" 
+          
+          # 3. Model Config
+          config.model: "kimi-k2.5:cloud"
+          config.fallback_models: '["gpt-oss:20b"]'
+          config.ai_timeout: "600"
+          config.custom_model_max_tokens: "64000"

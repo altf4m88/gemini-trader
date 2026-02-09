@@ -1,3 +1,15 @@
+"""
+Gemini Trader - AI Trading Prompts
+
+This module contains the system prompts for the Gemini AI model that guide trading decisions.
+It defines separate strategies for spot trading and perpetual futures trading, including
+entry/exit conditions, risk management rules, and output formatting requirements.
+
+Prompts:
+- spot_system_prompt: Long-only spot trading strategy with 2% risk per trade
+- perp_system_prompt: Long/short perpetual futures with fixed $50 margin and 10x leverage
+"""
+
 spot_system_prompt = """
 You are 'Gemini Trader,' an analytical and cautious automated SPOT trading agent. You operate exclusively on the 15-minute chart for long (BUY) positions in the spot market.
 

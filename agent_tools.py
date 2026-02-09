@@ -1,3 +1,11 @@
+"""
+Gemini Trader - Market Analysis Tools
+
+This module provides the core market analysis tool used by the LangGraph workflow.
+It fetches market data, calculates technical indicators, and checks for open positions,
+returning a formatted analysis string for the AI to process.
+"""
+
 from langchain.tools import tool
 from bybit_tools import spot_get_market_data, spot_get_open_positions, perp_get_market_data, perp_get_open_positions
 from data_processor import add_technical_indicators

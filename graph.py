@@ -1,3 +1,17 @@
+"""
+Gemini Trader - LangGraph Workflow
+
+This module defines the LangGraph state machine workflow for automated trading decisions.
+It orchestrates market analysis, AI-powered decision making, and trade execution through
+a structured multi-node graph.
+
+The workflow consists of four main nodes:
+1. analyze_market: Fetches and analyzes market data with technical indicators
+2. make_trade_decision: Uses Gemini AI to generate trading decisions
+3. log_decision: Records all decisions to the database
+4. execute_trade: Executes trades when action is BUY, SELL, or CLOSE
+"""
+
 import os
 import json
 from typing import TypedDict

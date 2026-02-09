@@ -1,3 +1,23 @@
+"""
+Gemini Trader - Bybit Exchange Integration
+
+This module provides comprehensive integration with the Bybit cryptocurrency exchange API.
+It handles market data fetching, position management, trade execution, and trade history
+for both spot and perpetual futures trading modes.
+
+Key Features:
+- Market data retrieval (OHLCV)
+- Account balance queries
+- Position management and monitoring
+- Trade execution (market orders)
+- PnL tracking
+- Historical trade import
+
+Configuration:
+- Uses demo/testnet by default (demo=True)
+- API credentials loaded from environment variables
+"""
+
 
 import os
 import math

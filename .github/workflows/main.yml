@@ -18,6 +18,10 @@ jobs:
           # 2. Point to your GPU Server's LAN IP
           # REPLACE '192.168.1.50' with your actual Server IP
           OLLAMA.API_BASE: "http://192.168.103.100:11434" 
+
+          github_action_config.auto_review: "true"   # The main review
+          github_action_config.auto_describe: "true" # Generates PR description
+          github_action_config.auto_improve: "false" 
           
           # 3. Model Config
           config.model: "kimi-k2.5:cloud"

@@ -1,3 +1,15 @@
+"""
+Gemini Trader - Main Entry Point
+
+This module serves as the main entry point for the Gemini Trader automated trading bot.
+It handles command-line argument parsing, scheduling of trading cycles, and orchestrates
+the overall trading workflow for both spot and perpetual futures trading modes.
+
+Usage:
+    python main.py spot --symbol XRPUSDT --interval 5
+    python main.py perp --symbol BTCUSDT --interval 15
+"""
+
 import schedule
 import time
 import logging

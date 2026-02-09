@@ -1,3 +1,10 @@
+"""
+Gemini Trader - Technical Indicator Processor
+
+This module handles the calculation of technical indicators using pandas-ta library.
+It enriches market data with RSI, MACD, Bollinger Bands, and Stochastic RSI indicators.
+"""
+
 import pandas as pd
 import pandas_ta as ta
 

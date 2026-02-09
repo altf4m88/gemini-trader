@@ -1,3 +1,19 @@
+"""
+Gemini Trader - REST API Server
+
+This module provides a FastAPI-based REST API for manual operations and queries.
+It exposes endpoints for market analysis, trade history management, and PnL statistics.
+
+Endpoints:
+- GET /analyze/{symbol}: Trigger manual market analysis
+- GET /trade-history/fetch: Fetch and store Bybit trade history
+- GET /trade-history/list: Query stored trade history
+- GET /trade-history/pnl-summary: Get PnL summary statistics
+
+Run with: python api.py
+Access docs at: http://localhost:8000/docs
+"""
+
 from fastapi import FastAPI, Query, HTTPException
 from typing import Optional
 from sqlalchemy import func

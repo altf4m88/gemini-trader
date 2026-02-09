@@ -1,3 +1,18 @@
+"""
+Gemini Trader - Database Models and Configuration
+
+This module defines the SQLAlchemy ORM models and database configuration for the trading bot.
+It manages trade history, balance tracking, token usage, and Bybit trade imports.
+
+Models:
+- TradeHistory: All trading decisions including HOLD actions
+- BybitTradeHistory: Imported execution history from Bybit API
+- BalanceHistory: Account balance snapshots over time
+- AgentTokenUsage: AI model token consumption tracking
+
+Database: PostgreSQL configured via DATABASE_URL environment variable
+"""
+
 import os
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON, Boolean, Text, BigInteger
 from sqlalchemy.orm import sessionmaker
